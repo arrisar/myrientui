@@ -41,7 +41,8 @@ func (c Content) GoToCmd() tea.Cmd {
 
 func (c Content) View() string {
 	path := fmt.Sprintf("/%s", strings.Join(c.path, ""))
-	body := ""
+	body := lipgloss.NewStyle().Height(c.list.Height()).Render("")
+	foot := MetaStyle.Render("(enter) open · (space) select · (a)dd tag · (c)onfiguration")
 
 	if c.loading {
 		path = MetaStyle.Render(fmt.Sprintf("%s (Loading...)", path))
@@ -50,7 +51,7 @@ func (c Content) View() string {
 		body = c.list.View()
 	}
 
-	return lipgloss.JoinVertical(0, path, body)
+	return lipgloss.JoinVertical(0, path, body, foot)
 }
 
 func (c Content) Init() tea.Cmd {
@@ -59,7 +60,7 @@ func (c Content) Init() tea.Cmd {
 
 func (c Content) Update(msg tea.Msg) (*Content, tea.Cmd) {
 	cmds := []tea.Cmd{}
-
+	navigating := false
 	switch msg := msg.(type) {
 
 	// scrape results
@@ -77,30 +78,39 @@ func (c Content) Update(msg tea.Msg) (*Content, tea.Cmd) {
 			c.list.InsertItem(i+offset, FileItem(option.Label))
 		}
 
-	// input
+	// key input
 	case tea.KeyMsg:
 		if c.loading == true {
 			break
 		}
 
 		switch msg.String() {
-		case "enter", " ":
+		case "enter":
 			item := c.list.SelectedItem().(FileItem)
 			part := fmt.Sprint(item)
 
-			if part == "../" {
+			switch true {
+			case part == "../":
 				c.path = c.path[:len(c.path)-1]
-			} else {
-				c.path = append(c.path, part)
-			}
+				navigating = true
 
-			c.loading = true
-			cmds = append(cmds, c.GoToCmd())
+			case strings.HasSuffix(part, ".zip"):
+				navigating = false
+
+			default:
+				c.path = append(c.path, part)
+				navigating = true
+			}
 		}
 
 	// window resize
 	case tea.WindowSizeMsg:
-		c.list.SetHeight(msg.Height - 7)
+		c.list.SetHeight(msg.Height - 8)
+	}
+
+	if navigating {
+		c.loading = true
+		cmds = append(cmds, c.GoToCmd())
 	}
 
 	list, cmd := c.list.Update(msg)
