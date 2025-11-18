@@ -12,10 +12,12 @@ import (
 
 func GetFileList() list.Model {
 	model := list.New([]list.Item{}, FileDelegate{}, 0, 0)
-	model.SetShowTitle(false)
-	model.SetShowPagination(false)
+	model.SetFilteringEnabled(true)
+	model.SetShowFilter(false)
 	model.SetShowHelp(false)
+	model.SetShowPagination(false)
 	model.SetShowStatusBar(false)
+	model.SetShowTitle(false)
 	return model
 }
 
@@ -31,7 +33,7 @@ var FileSelectedStyle lipgloss.Style = lipgloss.NewStyle().
 type FileItem string
 
 func (f FileItem) FilterValue() string {
-	return ""
+	return string(f)
 }
 
 /**

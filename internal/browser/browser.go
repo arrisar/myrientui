@@ -36,7 +36,7 @@ func (b Browser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// key presses
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q", "esc":
+		case "ctrl+c":
 			return b, tea.Quit
 		}
 
