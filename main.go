@@ -1,9 +1,18 @@
 package main
 
 import (
-	"github.com/arrisar/myrientui/internal/browser"
+	"fmt"
+	"os"
+
+	"github.com/arrisar/myrientui/internal/app"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
-	browser.Start()
+	a := app.New()
+	p := tea.NewProgram(a, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
+	}
 }

@@ -1,5 +1,6 @@
 # misc
 .DS_Store
+.scratch
 
 # builds
 dist/

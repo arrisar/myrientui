@@ -1,4 +1,4 @@
-package browser
+package scraper
 
 import (
 	"fmt"
@@ -6,37 +6,51 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/arrisar/myrientui/internal/myrient"
+	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/net/html"
 )
 
 var base = "https://myrient.erista.me/files"
 
-type ScrapeResultMsg struct {
-	options []myrient.Option
-	err     error
+type Scraper struct {
+	results chan ResultsMsg
+}
+
+func New() Scraper {
+	s := Scraper{}
+	s.results = make(chan ResultsMsg)
+	return s
+}
+
+func (s Scraper) StartScrape(path string) tea.Cmd {
+	return tea.Batch(
+		func() tea.Msg { return StartedMsg{} },
+		func() tea.Msg {
+			results, err := s.DoScrape(path)
+			return ResultsMsg{results, err}
+		})
 }
 
 /**
- * Scrape a page and extract the options
+ * Scrape a page and extract the results
  */
-func Scrape(path string) (msg ScrapeResultMsg) {
+func (s Scraper) DoScrape(path string) (res []Result, err error) {
 	uri := fmt.Sprintf("%s%s", base, path)
 
-	doc, err := getDocument(uri)
+	var doc *goquery.Document
+	doc, err = s.getDocument(uri)
 	if err != nil {
-		msg.err = err
 		return
 	}
 
-	msg.options, msg.err = parseOptions(doc)
+	res, err = s.parseResults(doc)
 	return
 }
 
 /**
  * Fetch the document
  */
-func getDocument(uri string) (doc *goquery.Document, err error) {
+func (s Scraper) getDocument(uri string) (doc *goquery.Document, err error) {
 	resp, err := http.Get(uri)
 	if err != nil {
 		return
@@ -50,10 +64,10 @@ func getDocument(uri string) (doc *goquery.Document, err error) {
 /**
  * Parse the document for link table rows
  */
-func parseOptions(doc *goquery.Document) (options []myrient.Option, err error) {
+func (s Scraper) parseResults(doc *goquery.Document) (results []Result, err error) {
 	rows := doc.Find("#list tbody tr").Nodes
 	for _, row := range rows {
-		option := myrient.Option{}
+		result := Result{}
 		include := true
 
 		cell := row.FirstChild
@@ -61,7 +75,7 @@ func parseOptions(doc *goquery.Document) (options []myrient.Option, err error) {
 			processed := false
 
 			// link
-			if !processed && hasClass("link", cell) {
+			if !processed && s.hasClass("link", cell) {
 				link := cell.FirstChild
 				text := link.FirstChild.Data
 
@@ -70,21 +84,21 @@ func parseOptions(doc *goquery.Document) (options []myrient.Option, err error) {
 					break
 				}
 
-				option.Label = text
-				option.Link = getNodeAttr("href", link).Val
-				option.IsDir = strings.HasSuffix(option.Link, "/")
+				result.Label = text
+				result.Link = s.getNodeAttr("href", link).Val
+				result.IsDir = strings.HasSuffix(result.Link, "/")
 				processed = true
 			}
 
 			// size
-			if !processed && hasClass("size", cell) {
-				option.Size = cell.FirstChild.Data
+			if !processed && s.hasClass("size", cell) {
+				result.Size = cell.FirstChild.Data
 				processed = true
 			}
 
 			// date
-			if !processed && hasClass("date", cell) {
-				option.Date = cell.FirstChild.Data
+			if !processed && s.hasClass("date", cell) {
+				result.Date = cell.FirstChild.Data
 				processed = true
 			}
 
@@ -93,7 +107,7 @@ func parseOptions(doc *goquery.Document) (options []myrient.Option, err error) {
 		}
 
 		if include {
-			options = append(options, option)
+			results = append(results, result)
 		}
 	}
 
@@ -103,7 +117,7 @@ func parseOptions(doc *goquery.Document) (options []myrient.Option, err error) {
 /**
  * Get a specific attribute from the node
  */
-func getNodeAttr(needle string, node *html.Node) (res html.Attribute) {
+func (s Scraper) getNodeAttr(needle string, node *html.Node) (res html.Attribute) {
 	for _, attr := range node.Attr {
 		if attr.Key == needle {
 			res = attr
@@ -117,8 +131,8 @@ func getNodeAttr(needle string, node *html.Node) (res html.Attribute) {
 /**
  * Check if a class exists on the node
  */
-func hasClass(needle string, node *html.Node) bool {
-	attr := getNodeAttr("class", node)
+func (s Scraper) hasClass(needle string, node *html.Node) bool {
+	attr := s.getNodeAttr("class", node)
 	if attr.Key == "" {
 		return false
 	}
