@@ -2,21 +2,28 @@ package browser
 
 import (
 	"fmt"
+	"math"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 )
 
 type List struct {
 	enabled bool
 	loading bool
+	spinner spinner.Model
 
-	cursor  int
-	options Options
-	path    Options
+	cursor   int
+	options  Options
+	filtered Options
+	path     Options
 
-	filterActive bool
-	filterValue  string
+	filterEnabled bool
+	filterActive  bool
+	filterApplied bool
+	filterValue   string
 
 	height int
 	width  int
@@ -27,12 +34,15 @@ func NewList() List {
 
 	l.enabled = true
 	l.loading = true
+	l.spinner = spinner.New()
 
 	l.cursor = 0
 	l.options = Options{}
 	l.path = Options{}
 
+	l.filterEnabled = true
 	l.filterActive = false
+	l.filterApplied = false
 	l.filterValue = ""
 
 	l.height = 0
@@ -50,13 +60,13 @@ func (l List) IsEnabled() bool {
 }
 
 func (l List) FilteredOptions() Options {
-	if len(l.filterValue) == 0 {
-		return l.options
-	}
-
 	f := Options{}
 	if len(l.path) > 0 {
 		f = Options{"../"}
+	}
+
+	if len(l.filterValue) == 0 {
+		return append(f, l.options...)
 	}
 
 	results := fuzzy.FindFrom(l.filterValue, l.options)
@@ -81,21 +91,32 @@ func (l *List) SetEnabled(v bool) *List {
  */
 
 func (l List) Init() tea.Cmd {
-	return func() tea.Msg {
-		return OptionSelectedMsg{
-			Option: Option(""),
-			Path:   l.path,
-		}
-	}
+	return tea.Batch(
+		l.spinner.Tick,
+		func() tea.Msg {
+			return OptionSelectedMsg{
+				Option: Option(""),
+				Path:   l.path,
+			}
+		})
 }
 
 func (l List) View() string {
-	content := ""
-	filtered := l.FilteredOptions()
+	pageSize := l.height - 4
+	pageMiddle := int(math.Ceil(float64(pageSize / 2)))
+	lastIndex := len(l.filtered) - 1
 
-	pageSize := l.height - 3
-	for i, o := range filtered {
-		if i >= pageSize {
+	// determine offset
+	offset := max(min(l.cursor-pageMiddle, lastIndex-pageSize), 0)
+	pageLastIndex := min(offset+pageSize, lastIndex, len(l.filtered)-1)
+
+	list := ""
+	for i, o := range l.filtered {
+		if i < offset {
+			continue
+		}
+
+		if i > pageLastIndex {
 			break
 		}
 
@@ -107,20 +128,32 @@ func (l List) View() string {
 			itemStyle = ListCurrentStyle
 		}
 
-		if i > 0 {
+		if i > offset {
 			prefix = "\n" + prefix
 		}
 
-		content = content + itemStyle.Render(prefix+string(o))
+		list = list + itemStyle.Render(fmt.Sprint(prefix, o))
 	}
 
-	return ListStyle.Height(l.height).Width(l.width).Render(content)
+	// counts row
+	count := fmt.Sprintf("%d/%d items", l.cursor+1, len(l.filtered))
+	if l.loading {
+		count = "Loading items " + l.spinner.View()
+	}
+
+	// render
+	list = ListStyle.Height(l.height - 2).Width(l.width).Render(list)
+	count = ListCountStyle.Render(count)
+	return lipgloss.JoinVertical(0, list, count)
 }
 
 func (l List) Update(msg tea.Msg) (List, tea.Cmd) {
 	var c, cmd tea.Cmd
 
 	l, cmd = l.handleUpdateMsg(msg)
+	c = tea.Batch(c, cmd)
+
+	l.spinner, cmd = l.spinner.Update(msg)
 	c = tea.Batch(c, cmd)
 
 	return l, tea.Batch(c)
@@ -155,38 +188,11 @@ func (l List) handleKeyMsg(msg tea.KeyMsg) (List, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg.String() {
 
-	case "enter":
-		o := l.FilteredOptions()[l.cursor]
-		p := l.path
+	case "enter", "right":
+		l, cmd = l.handleSelectOption(l.filtered[l.cursor])
 
-		back := o.String() == "../"
-		depth := len(p)
-		switch true {
-		case back && depth == 0:
-			return l, nil
-		case back && depth == 1:
-			o = ""
-			p = Options{}
-		case back && depth > 1:
-			prev := p[depth-1]
-			o = prev
-			p = p[0 : depth-1]
-		default:
-			p = append(p, o)
-		}
-
-		if o.IsFile() {
-			fmt.Println("FILE CHOSEN")
-			return l, nil
-		}
-
-		l.path = p
-		cmd = func() tea.Msg {
-			return OptionSelectedMsg{
-				Option: o,
-				Path:   p,
-			}
-		}
+	case "backspace", "left":
+		l, cmd = l.handleSelectOption("../")
 
 	case "up":
 		if l.cursor > 0 {
@@ -194,7 +200,7 @@ func (l List) handleKeyMsg(msg tea.KeyMsg) (List, tea.Cmd) {
 		}
 
 	case "down":
-		if l.cursor < len(l.options)-1 {
+		if l.cursor < len(l.filtered)-1 {
 			l.cursor += 1
 		}
 	}
@@ -209,8 +215,11 @@ func (l List) handleBrowserResizeMsg(msg BrowserResizeMsg) (List, tea.Cmd) {
 }
 
 func (l List) handleFilterStateMsg(msg FilterStateMsg) (List, tea.Cmd) {
+	l.filterEnabled = msg.Enabled
 	l.filterActive = msg.Active
+	l.filterApplied = msg.Applied
 	l.filterValue = msg.Value
+	l.filtered = l.FilteredOptions()
 
 	if msg.Active {
 		l.cursor = -1
@@ -224,10 +233,7 @@ func (l List) handleFilterStateMsg(msg FilterStateMsg) (List, tea.Cmd) {
 func (l List) handleOptionsChangedMsg(msg OptionsChangedMsg) (List, tea.Cmd) {
 	l.loading = false
 	l.options = msg.Options
-
-	if len(l.path) > 0 {
-		l.options = append(Options{"../"}, l.options...)
-	}
+	l.filtered = l.FilteredOptions()
 
 	if l.cursor != 0 {
 		l.cursor = 0
@@ -238,5 +244,53 @@ func (l List) handleOptionsChangedMsg(msg OptionsChangedMsg) (List, tea.Cmd) {
 
 func (l List) handleOptionsLoadingMsg(OptionsLoadingMsg) (List, tea.Cmd) {
 	l.loading = true
+	l.filtered = Options{}
+	l.options = Options{}
 	return l, nil
+}
+
+func (l List) handleSelectOption(t Option) (List, tea.Cmd) {
+	o := t
+	p := l.path
+
+	back := o.String() == "../"
+	depth := len(p)
+	switch true {
+	case back && depth == 0:
+		return l, nil
+	case back && depth == 1:
+		o = ""
+		p = Options{}
+	case back && depth > 1:
+		prev := p[depth-1]
+		o = prev
+		p = p[0 : depth-1]
+	default:
+		p = append(p, o)
+	}
+
+	if o.IsFile() {
+		fmt.Println("FILE CHOSEN")
+		return l, nil
+	}
+
+	l.path = p
+	cmd := tea.Batch(
+		func() tea.Msg {
+			return FilterStateMsg{
+				Enabled: l.filterEnabled,
+				Active:  false,
+				Applied: false,
+				Value:   "",
+			}
+		},
+		func() tea.Msg {
+			return OptionSelectedMsg{
+				Option: o,
+				Path:   p,
+			}
+		},
+	)
+
+	return l, cmd
 }

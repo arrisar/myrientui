@@ -1,14 +1,22 @@
 package browser
 
 type Key struct {
-	Value string
-	Label string
+	Values []string
+	Label  string
 }
 
 func (k Key) Render() string {
-	inline := string(k.Label[0:1]) == k.Value
+	inline := len(k.Values) == 1 && string(k.Label[0:1]) == k.Values[0]
 
-	key := KeyTextStyle.Render("(") + KeyValueStyle.Render(k.Value) + KeyTextStyle.Render(")")
+	key := KeyTextStyle.Render("(")
+	for i, v := range k.Values {
+		if i > 0 {
+			key += KeyTextStyle.Render("/")
+		}
+		key += KeyValueStyle.Render(v)
+	}
+
+	key += KeyTextStyle.Render(")")
 	var label string
 	if inline {
 		label = KeyTextStyle.Render(k.Label[1:])
@@ -20,11 +28,11 @@ func (k Key) Render() string {
 }
 
 var FilterKey Key = Key{
-	Value: "f",
-	Label: "filter",
+	Values: []string{"f"},
+	Label:  "filter",
 }
 
 var QuitKey Key = Key{
-	Value: "q",
-	Label: "quit",
+	Values: []string{"q"},
+	Label:  "quit",
 }

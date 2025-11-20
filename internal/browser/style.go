@@ -36,13 +36,17 @@ var FilterValueStyle lipgloss.Style = lipgloss.NewStyle()
  */
 
 var ListStyle lipgloss.Style = lipgloss.NewStyle().
-	Padding(1, 0, 1, 0)
+	Padding(1, 0, 0, 0)
 
 var ListItemStyle lipgloss.Style = lipgloss.NewStyle().
 	Foreground(lipgloss.AdaptiveColor{Light: "#444844", Dark: "#BBBFBB"})
 
 var ListCurrentStyle lipgloss.Style = lipgloss.NewStyle().
 	Foreground(lipgloss.AdaptiveColor{Light: "#115511", Dark: "#BBFFBB"})
+
+var ListCountStyle lipgloss.Style = lipgloss.NewStyle().
+	Padding(1, 0, 0, 0).
+	Foreground(lipgloss.AdaptiveColor{Light: "#332233", Dark: "#998899"})
 
 /**
  * FOOTER

@@ -86,20 +86,23 @@ func (h Header) Update(msg tea.Msg) (Header, tea.Cmd) {
 	c = tea.Batch(c, cmd)
 
 	if h.filterEnabled && c == nil {
+		before := h.Filter.Value()
 		h.Filter, cmd = h.Filter.Update(msg)
 		c = tea.Batch(c, cmd)
-	}
 
-	if h.filterValue != h.Filter.Value() {
-		h.filterValue = h.Filter.Value()
-		c = tea.Batch(c, func() tea.Msg {
-			return FilterStateMsg{
-				Enabled: h.filterEnabled,
-				Active:  h.filterActive,
-				Applied: h.filterApplied,
-				Value:   h.filterValue,
-			}
-		})
+		after := h.Filter.Value()
+		if before != after {
+			c = tea.Batch(c, func() tea.Msg {
+				h.filterApplied = len(after) > 0
+				h.filterValue = after
+				return FilterStateMsg{
+					Enabled: h.filterEnabled,
+					Active:  h.filterActive,
+					Applied: h.filterApplied,
+					Value:   after,
+				}
+			})
+		}
 	}
 
 	return h, c
@@ -115,6 +118,8 @@ func (h Header) handleUpdateMsg(msg tea.Msg) (Header, tea.Cmd) {
 		return h.handleKeyMsg(msg)
 	case BrowserResizeMsg:
 		return h.handleBrowserResizeMsg(msg)
+	case FilterStateMsg:
+		return h.handleFilterStateMsg(msg)
 	case OptionSelectedMsg:
 		return h.handleOptionSelectedMsg(msg)
 	default:
@@ -183,6 +188,15 @@ func (h Header) handleKeyMsg(msg tea.KeyMsg) (Header, tea.Cmd) {
 func (h Header) handleBrowserResizeMsg(msg BrowserResizeMsg) (Header, tea.Cmd) {
 	h.height = msg.HeaderHeight
 	h.width = msg.HeaderWidth
+	return h, nil
+}
+
+func (h Header) handleFilterStateMsg(msg FilterStateMsg) (Header, tea.Cmd) {
+	h.filterEnabled = msg.Enabled
+	h.filterActive = msg.Active
+	h.filterApplied = msg.Applied
+	h.filterValue = msg.Value
+	h.Filter.SetValue(msg.Value)
 	return h, nil
 }
 

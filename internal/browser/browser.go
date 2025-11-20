@@ -161,7 +161,7 @@ func (b Browser) handleResizeMsg(msg tea.WindowSizeMsg) (Browser, tea.Cmd) {
 			HeaderHeight = 0
 		}
 
-		FooterHeight := 3
+		FooterHeight := 2
 		FooterWidth := b.width
 		if !b.Footer.enabled {
 			FooterHeight = 0

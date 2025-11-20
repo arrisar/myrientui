@@ -3,16 +3,13 @@ package browser
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Footer struct {
 	enabled bool
-	keys    []Key
-
 	loading bool
-	spinner spinner.Model
+	keys    []Key
 
 	filterEnabled bool
 	filterActive  bool
@@ -26,10 +23,8 @@ func NewFooter() Footer {
 	f := Footer{}
 
 	f.enabled = true
-	f.keys = []Key{}
-
 	f.loading = true
-	f.spinner = spinner.New()
+	f.keys = []Key{}
 
 	f.filterEnabled = true
 	f.filterActive = false
@@ -65,14 +60,19 @@ func (f *Footer) RebuildKeys() *Footer {
 	switch true {
 	case f.filterActive:
 		next = []Key{
-			{"enter", "apply"},
-			{"esc", "clear"},
+			{[]string{"enter", ""}, "apply"},
+			{[]string{"esc"}, "clear"},
+		}
+	case f.filterEnabled:
+		next = []Key{
+			{[]string{"→", "enter"}, "open"},
+			{[]string{"←", "backspace"}, "return"},
+			{[]string{"f"}, "filter"},
 		}
 	default:
 		next = []Key{
-			{"enter", "open"},
-			{"space", "select"},
-			{"f", "filter"},
+			{[]string{"→", "enter"}, "open"},
+			{[]string{"←", "backspace"}, "return"},
 		}
 	}
 
@@ -85,11 +85,10 @@ func (f *Footer) RebuildKeys() *Footer {
  */
 
 func (f Footer) Init() tea.Cmd {
-	return tea.Batch(f.spinner.Tick,
-		func() tea.Msg {
-			f.RebuildKeys()
-			return nil
-		})
+	return func() tea.Msg {
+		f.RebuildKeys()
+		return nil
+	}
 }
 
 func (f Footer) View() (content string) {
@@ -97,17 +96,13 @@ func (f Footer) View() (content string) {
 		return
 	}
 
-	style := FooterStyle.Height(f.height).Width(f.width)
-	if f.loading {
-		return style.Render(f.spinner.View() + " Loading options...")
-	}
-
 	var keys []string
 	for _, key := range f.keys {
 		keys = append(keys, key.Render())
 	}
 
-	content = strings.Join(keys, " • ")
+	style := FooterStyle.Height(f.height).Width(f.width)
+	content = strings.Join(keys, KeyTextStyle.Render(" • "))
 	return style.Render(content)
 }
 
@@ -115,9 +110,6 @@ func (f Footer) Update(msg tea.Msg) (Footer, tea.Cmd) {
 	var c, cmd tea.Cmd
 
 	f, cmd = f.handleUpdateMsg(msg)
-	c = tea.Batch(c, cmd)
-
-	f.spinner, cmd = f.spinner.Update(msg)
 	c = tea.Batch(c, cmd)
 
 	return f, c
