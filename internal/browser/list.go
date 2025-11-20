@@ -270,7 +270,6 @@ func (l List) handleSelectOption(t Option) (List, tea.Cmd) {
 	}
 
 	if o.IsFile() {
-		fmt.Println("FILE CHOSEN")
 		return l, nil
 	}
 
