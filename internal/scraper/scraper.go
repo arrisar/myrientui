@@ -1,9 +1,9 @@
 package scraper
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,38 +12,51 @@ import (
 
 var base = "https://myrient.erista.me/files"
 
-type Scraper struct {
-	results chan ResultsMsg
-}
-
-func New() Scraper {
+func New(cacheDir string) Scraper {
 	s := Scraper{}
-	s.results = make(chan ResultsMsg)
+
+	s.Config = Config{}
+	s.Config.CacheDir = cacheDir
+	s.Config.Workers = 32
+
 	return s
 }
 
-func (s Scraper) StartScrape(path string) tea.Cmd {
+func (s Scraper) MsgScrape(path string) tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg { return StartedMsg{} },
 		func() tea.Msg {
-			results, err := s.DoScrape(path)
-			return ResultsMsg{results, err}
+			index, err := s.DoScrape(path)
+			return ResultsMsg{index, err}
 		})
+}
+
+func (s Scraper) DoScrape(path string) (index Index, err error) {
+	if index, err := s.CachedIndexRead(path); err == nil {
+		return index, nil
+	}
+
+	if index, err = s.ScrapePath(path); err != nil {
+		return
+	}
+
+	s.CachedIndexWrite(index)
+	return
 }
 
 /**
  * Scrape a page and extract the results
  */
-func (s Scraper) DoScrape(path string) (res []Result, err error) {
-	uri := fmt.Sprintf("%s%s", base, path)
+func (s Scraper) ScrapePath(path string) (index Index, err error) {
+	index.Path = path
 
 	var doc *goquery.Document
-	doc, err = s.getDocument(uri)
+	doc, err = s.getDocument(base + path)
 	if err != nil {
 		return
 	}
 
-	res, err = s.parseResults(doc)
+	err = s.parseResults(doc, &index)
 	return
 }
 
@@ -64,42 +77,54 @@ func (s Scraper) getDocument(uri string) (doc *goquery.Document, err error) {
 /**
  * Parse the document for link table rows
  */
-func (s Scraper) parseResults(doc *goquery.Document) (results []Result, err error) {
+func (s Scraper) parseResults(doc *goquery.Document, index *Index) error {
 	rows := doc.Find("#list tbody tr").Nodes
 	for _, row := range rows {
-		result := Result{}
+		result := Link{}
 		include := true
+		currDir := false
 
 		cell := row.FirstChild
 		for cell != nil {
 			processed := false
 
 			// link
-			if !processed && s.hasClass("link", cell) {
+			if !processed && include && s.hasClass("link", cell) {
+				processed = true
 				link := cell.FirstChild
 				text := link.FirstChild.Data
 
-				if text == "Parent directory/" || text == "./" || text == "../" {
-					include = false
-					break
+				if text == "./" {
+					currDir = true
 				}
 
-				result.Label = text
-				result.Link = s.getNodeAttr("href", link).Val
-				result.IsDir = strings.HasSuffix(result.Link, "/")
-				processed = true
+				if text == "Parent directory/" || text == "./" || text == "../" {
+					include = false
+				} else {
+					result.Label = text
+					result.Link = s.getNodeAttr("href", link).Val
+					result.IsDir = strings.HasSuffix(result.Link, "/")
+				}
 			}
 
 			// size
-			if !processed && s.hasClass("size", cell) {
-				result.Size = cell.FirstChild.Data
+			if !processed && include && s.hasClass("size", cell) {
 				processed = true
+				if cell.FirstChild.Data != "-" {
+					result.Size = cell.FirstChild.Data
+				}
 			}
 
 			// date
 			if !processed && s.hasClass("date", cell) {
-				result.Date = cell.FirstChild.Data
 				processed = true
+				if date, err := time.Parse("02-Jan-2006 15:04", cell.FirstChild.Data); err == nil {
+					result.UpdatedAt = date
+					if currDir {
+						index.UpdatedAt = date
+					}
+				}
+
 			}
 
 			// next cell
@@ -107,11 +132,12 @@ func (s Scraper) parseResults(doc *goquery.Document) (results []Result, err erro
 		}
 
 		if include {
-			results = append(results, result)
+			result.IndexedAt = time.Now().Truncate(time.Second).UTC()
+			index.Links = append(index.Links, result)
 		}
 	}
 
-	return
+	return nil
 }
 
 /**
@@ -137,8 +163,7 @@ func (s Scraper) hasClass(needle string, node *html.Node) bool {
 		return false
 	}
 
-	classes := strings.Fields(attr.Val)
-	for _, class := range classes {
+	for class := range strings.FieldsSeq(attr.Val) {
 		if class == needle {
 			return true
 		}

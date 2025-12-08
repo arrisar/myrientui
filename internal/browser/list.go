@@ -110,7 +110,7 @@ func (l List) View() string {
 	offset := max(min(l.cursor-pageMiddle, lastIndex-pageSize), 0)
 	pageLastIndex := min(offset+pageSize, lastIndex, len(l.filtered)-1)
 
-	list := ""
+	files := ""
 	for i, o := range l.filtered {
 		if i < offset {
 			continue
@@ -132,7 +132,7 @@ func (l List) View() string {
 			prefix = "\n" + prefix
 		}
 
-		list = list + itemStyle.Render(fmt.Sprint(prefix, o))
+		files = files + itemStyle.Render(fmt.Sprint(prefix, o))
 	}
 
 	// counts row
@@ -142,9 +142,9 @@ func (l List) View() string {
 	}
 
 	// render
-	list = ListStyle.Height(l.height - 2).Width(l.width).Render(list)
+	files = ListStyle.Height(l.height - 2).Width(l.width).Render(files)
 	count = ListCountStyle.Render(count)
-	return lipgloss.JoinVertical(0, list, count)
+	return lipgloss.JoinVertical(0, files, count)
 }
 
 func (l List) Update(msg tea.Msg) (List, tea.Cmd) {

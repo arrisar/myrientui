@@ -10,11 +10,8 @@ type Browser struct {
 	Footer Footer
 	List   List
 
-	loading  bool
-	cursor   int
-	options  []Option
-	selected []Option
-	path     []Option
+	loading bool
+	cursor  int
 
 	height int
 	width  int
@@ -155,20 +152,20 @@ func (b Browser) handleResizeMsg(msg tea.WindowSizeMsg) (Browser, tea.Cmd) {
 		BrowserHeight := b.height
 		BrowserWidth := b.width
 
-		HeaderHeight := 2
-		HeaderWidth := b.width
+		HeaderHeight := 7
+		HeaderWidth := b.width - 2
 		if !b.Header.enabled {
 			HeaderHeight = 0
 		}
 
 		FooterHeight := 2
-		FooterWidth := b.width
+		FooterWidth := b.width - 2
 		if !b.Footer.enabled {
 			FooterHeight = 0
 		}
 
-		ListHeight := b.height - HeaderHeight - FooterHeight
-		ListWidth := b.width
+		ListHeight := b.height - HeaderHeight - FooterHeight - 2
+		ListWidth := b.width - 2
 
 		return BrowserResizeMsg{
 			BrowserHeight,

@@ -4,19 +4,22 @@ import (
 	"fmt"
 
 	"github.com/arrisar/myrientui/internal/browser"
+	"github.com/arrisar/myrientui/internal/config"
 	"github.com/arrisar/myrientui/internal/scraper"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type App struct {
 	Browser tea.Model
+	Config  config.Config
 	Scraper scraper.Scraper
 }
 
 func New() App {
 	a := App{}
+	a.Config = config.New()
 	a.Browser = browser.New()
-	a.Scraper = scraper.New()
+	a.Scraper = scraper.New(a.Config.Data.Storage.CacheDir)
 	return a
 }
 
@@ -25,6 +28,7 @@ func New() App {
  */
 
 func (a App) Init() tea.Cmd {
+	// go a.Scraper.IndexAll()
 	return a.Browser.Init()
 }
 
@@ -77,7 +81,7 @@ func (a App) handleOptionSelectedMsg(msg browser.OptionSelectedMsg) (App, tea.Cm
 		uri += v.String()
 	}
 
-	return a, a.Scraper.StartScrape(uri)
+	return a, a.Scraper.MsgScrape(uri)
 }
 
 func (a App) handleStartedMsg(scraper.StartedMsg) (App, tea.Cmd) {
@@ -92,10 +96,11 @@ func (a App) handleResultsMsg(msg scraper.ResultsMsg) (App, tea.Cmd) {
 		return a, nil
 	}
 
+	a.Scraper.IndexPreload(msg.Index)
 	return a, func() tea.Msg {
 		o := browser.OptionsChangedMsg{}
 
-		for _, r := range msg.Results {
+		for _, r := range msg.Index.Links {
 			o.Options = append(o.Options, browser.Option(r.Label))
 		}
 

@@ -4,7 +4,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var BrowserStyle lipgloss.Style = lipgloss.NewStyle()
+var BrowserStyle lipgloss.Style = lipgloss.NewStyle().
+	Padding(1, 1, 1, 1)
 
 /**
  * HEADER
@@ -12,6 +13,11 @@ var BrowserStyle lipgloss.Style = lipgloss.NewStyle()
 
 var HeaderStyle lipgloss.Style = lipgloss.NewStyle().
 	Padding(0, 0, 0, 0)
+
+var LogoStyle lipgloss.Style = lipgloss.NewStyle().
+	Foreground(lipgloss.AdaptiveColor{Light: "#9c3a14ff", Dark: "#a94118"}).
+	Padding(0, 0, 1, 0).
+	Bold(true)
 
 var PathLabelStyle lipgloss.Style = lipgloss.NewStyle().
 	Foreground(lipgloss.AdaptiveColor{Light: "#c65ace", Dark: "#c65ace"}).
@@ -26,7 +32,7 @@ var FilterPlaceholderStyle lipgloss.Style = lipgloss.NewStyle()
 
 var FilterPromptStyle lipgloss.Style = lipgloss.NewStyle().
 	Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#ECFD65"}).
-	Padding(0, 1, 0, 0).
+	Padding(0, 0, 0, 0).
 	Bold(true)
 
 var FilterValueStyle lipgloss.Style = lipgloss.NewStyle()
@@ -53,7 +59,7 @@ var ListCountStyle lipgloss.Style = lipgloss.NewStyle().
  */
 
 var FooterStyle lipgloss.Style = lipgloss.NewStyle().
-	Padding(1, 0, 0, 0)
+	Padding(1, 0, 1, 0)
 
 var KeysStyle lipgloss.Style = lipgloss.NewStyle()
 

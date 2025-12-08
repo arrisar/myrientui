@@ -5,7 +5,15 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
+
+var logo string = LogoStyle.Render(`
+______  ___         _    ____________  ______
+___/  |/  /_ ______(_)__ _____  __/ / / /  _/
+__/ /|_/ / // / __/ / -_) _ \/ / / /_/ // /  
+_/_/  /_/\_, /_/ /_/\__/_//_/_/  \____/___/  
+         /__/`)
 
 type Header struct {
 	enabled   bool
@@ -76,7 +84,7 @@ func (h Header) View() (content string) {
 		)
 	}
 
-	return HeaderStyle.Render(content)
+	return HeaderStyle.Render(lipgloss.JoinVertical(0, logo, content))
 }
 
 func (h Header) Update(msg tea.Msg) (Header, tea.Cmd) {

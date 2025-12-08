@@ -3,6 +3,11 @@ package scraper
 type StartedMsg struct{}
 
 type ResultsMsg struct {
-	Results []Result
-	Err     error
+	Index Index
+	Err   error
+}
+
+type IndexMsg struct {
+	Found   int
+	Indexed int
 }
